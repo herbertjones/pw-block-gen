@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
- module Main where
+module Main where
 
 import qualified System.Random as R
 import qualified Data.Text.Lazy as L

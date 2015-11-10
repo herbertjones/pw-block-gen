@@ -1,7 +1,7 @@
 # pw-block-gen
 Generate a 2D block of random characters for password management.  For when a password manager is not practical.
 
-Directions:
+## Usage
 
 1. Pick a starting position, perhaps based off the site or account name or both.
 2. Move by some offset.
@@ -40,3 +40,8 @@ X|oTKDoUXaGk-mPXbUkRPFv!ZKgg
 Y|nCzEo^ae!jxQr_mT_~KJVDSnAu
 Z|^nADvKx!d@s@z#cuIA!&XptuMF
 ```
+
+## Build Instructions
+
+1. `stack build`
+2. `stack install`

@@ -20,7 +20,7 @@ alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 passwordCharactersExtended :: L.Text
 passwordCharactersExtended =
-  L.concat [L.toLower alphabet, L.toUpper alphabet, "!@#$%^&*+-_=~"]
+  L.concat [L.toLower alphabet, L.toUpper alphabet, "1234567890", "!@#$%^&*+-_=~"]
 
 getPasswordChar :: L.Text -> S.State R.StdGen Char
 getPasswordChar chars = do

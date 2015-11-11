@@ -2,66 +2,103 @@
 
 module Main where
 
-import qualified Data.Text.Lazy            as L
-import qualified Data.Text.Lazy.IO         as L
+import qualified Data.Text.Lazy            as T
+import qualified Data.Text.Lazy.IO         as T
 import qualified System.Random             as R
 
 import           Control.Monad
 import qualified Control.Monad.Trans.State as S
 import           Data.Char                 (ord)
+import           Data.Int                  (Int64)
 import           System.IO
+
+import           Options.Applicative
+
+data Spacing = Narrow | Wide
+
+data PasswordOptions = PasswordOptions
+  { spacing :: Spacing
+  }
+
+parseSpacing :: Parser Spacing
+parseSpacing = flag Narrow Wide
+  ( long "widespacing"
+ <> short 'w'
+ <> help "Add space between output"
+  )
+
+parseOptions :: Parser PasswordOptions
+parseOptions = PasswordOptions
+  <$> parseSpacing
 
 -- Total number of unicode points
 maxCodePoints :: Integer
 maxCodePoints = 1114112
 
-alphabet :: L.Text
+alphabet :: T.Text
 alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
-passwordCharactersExtended :: L.Text
+passwordCharactersExtended :: T.Text
 passwordCharactersExtended =
-  L.concat [L.toLower alphabet, L.toUpper alphabet, "1234567890", "!@#$%^&*+-_=~"]
+  T.concat [T.toLower alphabet, T.toUpper alphabet, "1234567890", "!@#$%^&*+-_=~"]
 
-getPasswordChar :: L.Text -> S.State R.StdGen Char
+getPasswordChar :: T.Text -> S.State R.StdGen Char
 getPasswordChar chars = do
   generator <- S.get
-  let textLength = L.length chars
+  let textLength = T.length chars
       (randomValue, nextGenerator) = R.randomR (0, textLength - 1) generator
-      char = L.index chars randomValue
+      char = T.index chars randomValue
   S.put nextGenerator
   return char
 
-randomTextSequence :: Int -> R.StdGen -> (L.Text, R.StdGen)
-randomTextSequence n generator = (L.pack password, nextGenerator)
+randomTextSequence :: T.Text -> Int -> R.StdGen -> (T.Text, R.StdGen)
+randomTextSequence chars n generator = (T.pack password, nextGenerator)
   where (password, nextGenerator) =
-          S.runState (replicateM n (getPasswordChar passwordCharactersExtended))
+          S.runState (replicateM n (getPasswordChar chars))
                      generator
 
-textToWord :: L.Text -> Integer
-textToWord = L.foldl folder 0
+textToWord :: T.Text -> Integer
+textToWord = T.foldl folder 0
   where folder n ch = fromIntegral (ord ch) + (n * maxCodePoints)
 
 bindToInt :: (Integral a) => a -> Int
 bindToInt n = fromIntegral (n `mod` fromIntegral (maxBound :: Int))
 
 blockSize :: (Integral a) => a
-blockSize = fromIntegral $ L.length alphabet
+blockSize = fromIntegral $ T.length alphabet
 
-main :: IO ()
-main = do
-  L.putStr "Generation key: "
+genPasswordBlock :: PasswordOptions -> IO ()
+genPasswordBlock opts = do
+  T.putStr "Generation key: "
   hFlush stdout
-  key <- L.getLine
+  key <- T.getLine
 
   let passwordIntegerValue = textToWord key
       boundPasswordIntegerValue = bindToInt passwordIntegerValue
       generator = R.mkStdGen (fromIntegral boundPasswordIntegerValue)
-      randomText = fst (randomTextSequence (blockSize*blockSize) generator)
-      outputLines = zipWith (\ch line -> L.concat [L.pack [ch], "|", line])
-                            (L.unpack alphabet)
-                            (L.chunksOf blockSize randomText)
+      randomText = fst (randomTextSequence passwordCharactersExtended (blockSize*blockSize) generator)
+      randomTextLines' = T.chunksOf blockSize randomText
+      randomTextLines = case spacing opts of
+                          Narrow -> randomTextLines'
+                          Wide -> fmap (T.intersperse ' ') randomTextLines'
+      headerText = case spacing opts of
+                        Narrow -> alphabet
+                        Wide -> T.intersperse ' ' alphabet
+      dashWidth = T.length headerText
+      outputLines = zipWith (\ch line -> T.concat [T.pack [ch], "|", line])
+                            (T.unpack alphabet)
+                            randomTextLines
 
-  L.putStrLn ""
-  L.putStrLn $ L.concat ["  ", alphabet]
-  L.putStrLn $ L.concat ["  ", L.take blockSize (L.repeat '-')]
-  mapM_ L.putStrLn outputLines
+  T.putStrLn ""
+  T.putStrLn $ T.concat ["  ", headerText]
+  T.putStrLn $ T.concat ["  ", T.take dashWidth (T.repeat '-')]
+  mapM_ T.putStrLn outputLines
+
+main :: IO ()
+main = execParser opts >>= genPasswordBlock
+  where
+    opts = info (helper <*> parseOptions)
+      ( fullDesc
+     <> progDesc "Generate a password block."
+     <> header "pw-block-gen - Generate password block"
+      )

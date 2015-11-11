@@ -96,10 +96,9 @@ genPasswordBlock opts = do
       headerLine = T.concat ["  ", headerContent]
       dashLine = T.concat ["  ", T.take dashWidth (T.repeat '-')]
       zipper = case labeling opts of
-                 LeftTopCorners -> \ch line -> T.concat [T.pack [ch], "|", line]
-                 AllCorners -> \ch line -> T.concat [T.pack [ch], "|", line
-                                                    , "|", T.pack [ch]]
-      outputLines = zipWith zipper (T.unpack alphabet) randomTextLines
+                 LeftTopCorners -> \alph line -> T.concat [alph, "|", line]
+                 AllCorners -> \alph line -> T.concat [alph, "|", line , "|", alph]
+      outputLines = zipWith zipper (T.singleton <$> T.unpack alphabet) randomTextLines
 
   T.putStrLn ""
   T.putStrLn headerLine

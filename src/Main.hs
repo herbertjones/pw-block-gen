@@ -2,34 +2,40 @@
 
 module Main where
 
-import qualified Data.Text.Lazy            as T
-import qualified Data.Text.Lazy.IO         as T
-import qualified System.Random             as R
-
 import           Control.Monad
 import qualified Control.Monad.Trans.State as S
 import           Data.Char                 (ord)
-import           Data.Int                  (Int64)
-import           System.IO
-
+import qualified Data.Text.Lazy            as T
+import qualified Data.Text.Lazy.IO         as T
 import           Options.Applicative
+import           System.IO
+import qualified System.Random             as R
 
 data Spacing = Narrow | Wide
+data Labeling = LeftTopCorners | AllCorners deriving (Eq)
 
 data PasswordOptions = PasswordOptions
-  { spacing :: Spacing
+  { spacing  :: Spacing
+  , labeling :: Labeling
   }
 
 parseSpacing :: Parser Spacing
 parseSpacing = flag Narrow Wide
-  ( long "widespacing"
+  ( long "wide-spacing"
  <> short 'w'
  <> help "Add space between output"
   )
 
+parseLabeling :: Parser Labeling
+parseLabeling = flag LeftTopCorners AllCorners
+  ( long "full-labeling"
+ <> short 'f'
+ <> help "Add labeling on right and bottom."
+  )
+
 parseOptions :: Parser PasswordOptions
 parseOptions = PasswordOptions
-  <$> parseSpacing
+  <$> parseSpacing <*> parseLabeling
 
 -- Total number of unicode points
 maxCodePoints :: Integer
@@ -76,23 +82,34 @@ genPasswordBlock opts = do
   let passwordIntegerValue = textToWord key
       boundPasswordIntegerValue = bindToInt passwordIntegerValue
       generator = R.mkStdGen (fromIntegral boundPasswordIntegerValue)
-      randomText = fst (randomTextSequence passwordCharactersExtended (blockSize*blockSize) generator)
+      randomText = fst (randomTextSequence passwordCharactersExtended
+                                           (blockSize*blockSize)
+                                           generator)
       randomTextLines' = T.chunksOf blockSize randomText
       randomTextLines = case spacing opts of
                           Narrow -> randomTextLines'
                           Wide -> fmap (T.intersperse ' ') randomTextLines'
-      headerText = case spacing opts of
+      headerContent = case spacing opts of
                         Narrow -> alphabet
                         Wide -> T.intersperse ' ' alphabet
-      dashWidth = T.length headerText
-      outputLines = zipWith (\ch line -> T.concat [T.pack [ch], "|", line])
-                            (T.unpack alphabet)
-                            randomTextLines
+      dashWidth = T.length headerContent
+      headerLine = T.concat ["  ", headerContent]
+      dashLine = T.concat ["  ", T.take dashWidth (T.repeat '-')]
+      zipper = case labeling opts of
+                 LeftTopCorners -> \ch line -> T.concat [T.pack [ch], "|", line]
+                 AllCorners -> \ch line -> T.concat [T.pack [ch], "|", line
+                                                    , "|", T.pack [ch]]
+      outputLines = zipWith zipper (T.unpack alphabet) randomTextLines
 
   T.putStrLn ""
-  T.putStrLn $ T.concat ["  ", headerText]
-  T.putStrLn $ T.concat ["  ", T.take dashWidth (T.repeat '-')]
+  T.putStrLn headerLine
+  T.putStrLn dashLine
+
   mapM_ T.putStrLn outputLines
+
+  when (labeling opts == AllCorners) $ do
+    T.putStrLn dashLine
+    T.putStrLn headerLine
 
 main :: IO ()
 main = execParser opts >>= genPasswordBlock
